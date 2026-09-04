@@ -269,7 +269,19 @@ void Lexer::skipComment()
     }
 }
 
-std::vector<Token>& Lexer::tokenize()
+void Lexer::setSource(const std::string& newSource)
+{
+    source = newSource;
+    pos = 0;
+    line = 1;
+    col = 1;
+    lastResolvedTokenPos = -1;
+    tokenStartLine = 0;
+    tokenStartCol = 0;
+    tokens.clear();
+}
+
+std::vector<Token> Lexer::tokenize()
 {
     if(source.empty())
     {
@@ -302,7 +314,7 @@ std::vector<Token>& Lexer::tokenize()
         else if(isDigit())
         {
             int unresolvedLen = pos - lastResolvedTokenPos - 1;
-            if(unresolvedLen > 0)
+            if(unresolvedLen > 0) // The digit is part of an unresolved token, like an identifier or keyword
                 advance();
             else
                 resolveNumber();
@@ -329,7 +341,7 @@ std::vector<Token>& Lexer::tokenize()
         }
     }
 
-    resolveUnresolved();  // handle anything pending at EOF
+    resolveUnresolved();
     tokens.push_back({TokenType::END_OF_FILE, "", line, col});
     return tokens;
 }

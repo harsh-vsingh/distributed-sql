@@ -89,7 +89,7 @@ enum class TokenType
     // arithmetic operators
     PLUS,
     MINUS,
-    STAR, // also SELECT *
+    STAR,
     SLASH,
 
     // punctuation
@@ -97,7 +97,7 @@ enum class TokenType
     RPAREN,
     COMMA,
     SEMICOLON,
-    DOT,   // for table.column
+    DOT,
 
     // special
     END_OF_FILE

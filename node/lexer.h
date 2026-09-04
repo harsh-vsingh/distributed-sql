@@ -13,9 +13,9 @@ class Lexer
     int pos = 0;
     int line = 1;
     int col = 1;
-    int lastResolvedTokenPos = -1;
-    int tokenStartLine = 0;
-    int tokenStartCol = 0;
+    int lastResolvedTokenPos = -1; // Last token position that was resolved
+    int tokenStartLine = 0;        // Line number where the current token starts
+    int tokenStartCol = 0;         // Column number where the current token starts
     std::vector<Token> tokens;
 
     void advance();
@@ -34,7 +34,8 @@ class Lexer
     void skipComment();
 
 public:
-    Lexer(std::string source) : source(source){};
+    Lexer(const std::string& source) : source(source) {}
 
-    std::vector<Token>& tokenize();
+    void setSource(const std::string& newSource);
+    std::vector<Token> tokenize();
 };
