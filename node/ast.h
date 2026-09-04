@@ -41,7 +41,7 @@ enum class BinaryOp
     PLUS, MINUS, STAR, SLASH
 };
 
-enum class UnaryOp { NOT, MINUS };
+enum class UnaryOp { NOT, NEGATE };
 
 struct BinaryExpr;
 struct UnaryExpr;

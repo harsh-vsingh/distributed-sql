@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <utility>
 
+// Helper functions
 void Parser::setTokens(std::vector<Token>& newTokens)
 {
     tokens = newTokens;
@@ -52,6 +53,254 @@ Token& Parser::expect(TokenType type, const std::string& message)
     );
 }
 
+// Expression parsing
+Expr Parser::parseAggregateFunctionCall()
+{
+    Token funcToken = tokens[pos - 1];
+    AggFunc func;
+
+    switch(funcToken.type)
+    {
+        case TokenType::COUNT:
+            func = AggFunc::COUNT;
+            break;
+        case TokenType::SUM:
+            func = AggFunc::SUM;
+            break;
+        case TokenType::AVG:
+            func = AggFunc::AVG;
+            break;
+        case TokenType::MIN:
+            func = AggFunc::MIN;
+            break;
+        case TokenType::MAX:
+            func = AggFunc::MAX;
+            break;
+    }
+
+    expect(TokenType::LPAREN, "expected a left parenthesis");
+
+    bool star = false;
+    std::optional<Expr> arg;
+
+    if(match(TokenType::STAR))
+    {
+        star = true;
+    }
+    else if(check(TokenType::IDENTIFIER))
+    {
+        arg = parseExpression();
+    }
+    else
+    {
+        throw std::runtime_error("Expected a identifier at position" + pos);
+    }
+
+    expect(TokenType::RPAREN, "expected closing parenthesis");
+
+    FunctionCall call{func, star, std::move(arg)};
+    return std::make_unique<FunctionCall>(std::move(call));
+}
+
+Expr Parser::parsePrimaryExpression()
+{
+    if(match(TokenType::INTEGER))
+    {
+        int value = std::stoll(tokens[pos - 1].value);
+        return Literal{value};
+    }
+    else if(match(TokenType::FLOAT))
+    {
+        double value = std::stod(tokens[pos - 1].value);
+        return Literal{value};
+    }
+    else if(match(TokenType::STRING))
+    {
+        return Literal{tokens[pos - 1].value};
+    }
+    else if(match(TokenType::TRUE_LIT))
+    {
+        return Literal{true};
+    }
+    else if(match(TokenType::FALSE_LIT))
+    {
+        return Literal{false};
+    }
+    else if(match(TokenType::NULL_LIT))
+    {
+        return Literal{nullptr};
+    }
+    else if(match(TokenType::IDENTIFIER))
+    {
+        std::string columnName = tokens[pos - 1].value;
+        std::string tableName = "";
+
+        if(match(TokenType::DOT))
+        {
+            tableName = columnName;
+            columnName = expect(TokenType::IDENTIFIER, "Expected column name after '.'").value;
+        }
+
+        return ColumnRef{tableName, columnName};
+    }
+    else if(match(TokenType::LPAREN))
+    {
+        Expr expr = parseExpression();
+        expect(TokenType::RPAREN, "Expected ')' after expression");
+        return expr;
+    }
+    else if(match(TokenType::COUNT) || match(TokenType::SUM) || match(TokenType::AVG) ||
+            match(TokenType::MIN) || match(TokenType::MAX))
+    {
+        return parseAggregateFunctionCall();
+    }
+
+    throw std::runtime_error("Unexpected token: " + peek().value);
+}
+
+Expr Parser::parseUnaryExpression()
+{
+    if(match(TokenType::NOT) || match(TokenType::MINUS))
+    {
+        Token opToken = tokens[pos - 1];
+        Expr operand = parseUnaryExpression();
+
+        UnaryOp op;
+        switch(opToken.type)
+        {
+            case TokenType::NOT:
+                op = UnaryOp::NOT;
+                break;
+            case TokenType::MINUS:
+                op = UnaryOp::NEGATE;
+                break;
+            default:
+                throw std::runtime_error("Unexpected unary operator");
+        }
+        return std::make_unique<UnaryExpr>(UnaryExpr{op, std::move(operand)});
+    }
+    return parsePrimaryExpression();
+}
+
+Expr Parser::parseMultiplicativeExpression()
+{
+    Expr left = parseUnaryExpression();
+
+    while(match(TokenType::STAR) || match(TokenType::SLASH))
+    {
+        Token opToken = tokens[pos - 1];
+        Expr right = parseUnaryExpression();
+
+        BinaryOp op;
+        switch(opToken.type)
+        {
+            case TokenType::STAR:
+                op = BinaryOp::STAR;
+                break;
+            case TokenType::SLASH:
+                op = BinaryOp::SLASH;
+                break;
+            default:
+                throw std::runtime_error("Unexpected multiplicative operator");
+        }
+        left = std::make_unique<BinaryExpr>(BinaryExpr{std::move(left), op, std::move(right)});
+    }
+    return left;
+}
+
+Expr Parser::parseAdditiveExpression()
+{
+    Expr left = parseMultiplicativeExpression();
+
+    while(match(TokenType::PLUS) || match(TokenType::MINUS))
+    {
+        Token opToken = tokens[pos - 1];
+        Expr right = parseMultiplicativeExpression();
+
+        BinaryOp op;
+        switch(opToken.type)
+        {
+            case TokenType::PLUS:
+                op = BinaryOp::PLUS;
+                break;
+            case TokenType::MINUS:
+                op = BinaryOp::MINUS;
+                break;
+            default:
+                throw std::runtime_error("Unexpected additive operator");
+        }
+        left = std::make_unique<BinaryExpr>(BinaryExpr{std::move(left), op, std::move(right)});
+    }
+    return left;
+}
+
+Expr Parser::parseComparisonExpression()
+{
+    Expr left = parseAdditiveExpression();
+
+    while(match(TokenType::EQ) || match(TokenType::NEQ) || match(TokenType::LT) ||
+          match(TokenType::GT) || match(TokenType::LTE) || match(TokenType::GTE))
+    {
+        Token opToken = tokens[pos - 1];
+        Expr right = parseAdditiveExpression();
+
+        BinaryOp op;
+        switch(opToken.type)
+        {
+            case TokenType::EQ:
+                op = BinaryOp::EQ;
+                break;
+            case TokenType::NEQ:
+                op = BinaryOp::NEQ;
+                break;
+            case TokenType::LT:
+                op = BinaryOp::LT;
+                break;
+            case TokenType::GT:
+                op = BinaryOp::GT;
+                break;
+            case TokenType::LTE:
+                op = BinaryOp::LTE;
+                break;
+            case TokenType::GTE:
+                op = BinaryOp::GTE;
+                break;
+            default:
+                throw std::runtime_error("Unexpected comparison operator");
+        }
+        left = std::make_unique<BinaryExpr>(BinaryExpr{std::move(left), op, std::move(right)});
+    }
+    return left;
+}
+
+Expr Parser::parseLogicalAndExpression()
+{
+    Expr left = parseComparisonExpression();
+    while(match(TokenType::AND))
+    {
+        Expr right = parseComparisonExpression();
+        left = std::make_unique<BinaryExpr>(BinaryExpr{std::move(left), BinaryOp::AND, std::move(right)});
+    }
+    return left;
+}
+
+Expr Parser::parseLogicalOrExpression()
+{
+    Expr left = parseLogicalAndExpression();
+    while(match(TokenType::OR))
+    {
+        Expr right = parseLogicalAndExpression();
+        left = std::make_unique<BinaryExpr>(BinaryExpr{std::move(left), BinaryOp::OR, std::move(right)});
+    }
+    return left;
+}
+
+Expr Parser::parseExpression()
+{
+    return parseLogicalOrExpression();
+}
+
+// Statement parsing
 void Parser::parseSelectStatement(SelectStatement& selectStmt)
 {
     // Implementation for parsing SELECT statement
@@ -74,7 +323,63 @@ void Parser::parseDeleteStatement(DeleteStatement& deleteStmt)
 
 void Parser::parseCreateTableStatement(CreateTableStatement& createStmt)
 {
-    // Implementation for parsing CREATE TABLE statement
+    createStmt.tableName = expect(TokenType::IDENTIFIER, "Expected table name after CREATE TABLE").value;
+    expect(TokenType::LPAREN, "Expected '(' after table name");
+
+    while(peek().type != TokenType::RPAREN)
+    {
+        ColumnDef column;
+        column.name = expect(TokenType::IDENTIFIER, "Expected column name").value;
+
+        if(match(TokenType::INT))
+            column.type = IntType{};
+        else if(match(TokenType::BOOL))
+            column.type = BoolType{};
+        else if(match(TokenType::FLOAT_TYPE))
+            column.type = FloatType{};
+        else if(match(TokenType::VARCHAR))
+        {
+            expect(TokenType::LPAREN, "Expected '(' after VARCHAR");
+            int length = std::stoi(expect(TokenType::INTEGER, "Expected length for VARCHAR").value);
+            expect(TokenType::RPAREN, "Expected ')' after VARCHAR length");
+            column.type = VarCharType{length};
+        }
+        else if(match(TokenType::TIMESTAMP))
+            column.type = TimestampType{};
+        else
+            throw std::runtime_error("Expected data type for column " + column.name);
+
+        while(peek().type != TokenType::COMMA && peek().type != TokenType::RPAREN)
+        {
+            if(match(TokenType::PRIMARY))
+            {
+                expect(TokenType::KEY, "Expected KEY after PRIMARY");
+                column.primaryKey = true;
+            }
+            else if(match(TokenType::NOT))
+            {
+                expect(TokenType::NULL_LIT, "Expected NULL after NOT");
+                column.nullable = false;
+            }
+            else if(match(TokenType::UNIQUE))
+            {
+                column.unique = true;
+            }
+            else
+            {
+                throw std::runtime_error("Unexpected token in column definition: " + peek().value);
+            }
+        }
+
+        createStmt.columns.push_back(std::move(column));
+
+        if(peek().type == TokenType::COMMA)
+            advance();
+    }
+
+    expect(TokenType::RPAREN, "Expected ')' after column definitions");
+    expect(TokenType::SEMICOLON, "Expected ';' after CREATE TABLE statement");
+    return;
 }
 
 void Parser::parseCreateIndexStatement(CreateIndexStatement& createStmt)
@@ -123,6 +428,7 @@ void Parser::parseRollbackStatement(RollbackStatement& rollbackStmt)
     expect(TokenType::SEMICOLON, "Expected ';' after ROLLBACK statement");
     return;
 }
+
 
 Statement Parser::parse()
 {
@@ -216,4 +522,16 @@ Statement Parser::parse()
     }
 
     return parseStatement;
+}
+
+std::vector<Statement> Parser::parseAll()
+{
+    std::vector<Statement> statements;
+
+    while (peek().type != TokenType::END_OF_FILE)
+    {
+        statements.push_back(parse());
+    }
+
+    return statements;
 }

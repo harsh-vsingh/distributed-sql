@@ -26,6 +26,17 @@ class Parser
     void parseCommitStatement(CommitStatement& commitStmt);
     void parseRollbackStatement(RollbackStatement& rollbackStmt);
 
+    //Expression parsing
+    Expr parsePrimaryExpression();
+    Expr parseUnaryExpression();
+    Expr parseMultiplicativeExpression();
+    Expr parseAdditiveExpression();
+    Expr parseComparisonExpression();
+    Expr parseLogicalAndExpression();
+    Expr parseLogicalOrExpression();
+    Expr parseExpression();
+    Expr parseAggregateFunctionCall();
+
     // Helper functions
     Token& peek();
     Token& advance();
