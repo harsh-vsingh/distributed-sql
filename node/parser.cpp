@@ -309,6 +309,11 @@ void Parser::parseSelectStatement(SelectStatement& selectStmt)
 {
     std::vector<SelectColumn> columns;
 
+    if(match(TokenType::DISTINCT))
+    {
+        selectStmt.distinct = true;
+    }
+
     while(true)
     {
         Expr expr = parseExpression();
@@ -346,36 +351,50 @@ void Parser::parseSelectStatement(SelectStatement& selectStmt)
     }
     selectStmt.from = std::move(from);
 
-    // join
-    if(match(TokenType::JOIN) || match(TokenType::INNER) || match(TokenType::LEFT) ||
-       match(TokenType::RIGHT) || match(TokenType::OUTER))
+    std::vector<JoinClause> joins;
+    while(match(TokenType::JOIN) || match(TokenType::INNER) || 
+       match(TokenType::LEFT) || match(TokenType::RIGHT))
     {
         JoinType joinType;
-
         if(tokens[pos - 1].type == TokenType::JOIN)
             joinType = JoinType::INNER;
         else if(tokens[pos - 1].type == TokenType::INNER)
+        {
+            expect(TokenType::JOIN, "expected JOIN after INNER");
             joinType = JoinType::INNER;
+        }
         else if(tokens[pos - 1].type == TokenType::LEFT)
+        {
+            expect(TokenType::JOIN, "expected JOIN after LEFT");
             joinType = JoinType::LEFT;
+        }
         else if(tokens[pos - 1].type == TokenType::RIGHT)
+        {
+            expect(TokenType::JOIN, "expected JOIN after RIGHT");
             joinType = JoinType::RIGHT;
-        else if(tokens[pos - 1].type == TokenType::OUTER)
-            joinType = JoinType::OUTER;
+        }
 
-        std::string tableName = expect(TokenType::IDENTIFIER, "expected table name after JOIN").value;
-        std::optional<std::string> alias;
+        expect(TokenType::IDENTIFIER, "expected table name after JOIN");
+        std::string tableName = tokens[pos - 1].value;
 
+        TableSource tableSource;
         if(match(TokenType::AS))
         {
-            alias = expect(TokenType::IDENTIFIER, "expected alias after AS").value;
+            std::string alias = expect(TokenType::IDENTIFIER, "expected alias after AS").value;
+            tableSource = TableSource{tableName, alias};
+        }
+        else
+        {
+            tableSource = TableSource{tableName, std::nullopt};
         }
 
         expect(TokenType::ON, "expected ON after table name in JOIN clause");
         Expr onExpr = parseExpression();
 
-        selectStmt.joins.push_back(JoinClause{joinType, TableSource{tableName, std::move(alias)}, std::move(onExpr)});
+        JoinClause joinClause{joinType, std::move(tableSource), std::move(onExpr)};
+        joins.push_back(std::move(joinClause));
     }
+    selectStmt.joins = std::move(joins);
     
     if(match(TokenType::WHERE))
     {
@@ -394,11 +413,11 @@ void Parser::parseSelectStatement(SelectStatement& selectStmt)
                 break;
         }
         selectStmt.groupBy = std::move(groupBy);
+    }
 
-        if(match(TokenType::HAVING))
-        {
-            selectStmt.having = parseExpression();
-        }
+    if(match(TokenType::HAVING))
+    {
+        selectStmt.having = parseExpression();
     }
 
     if(match(TokenType::ORDER))
@@ -429,6 +448,9 @@ void Parser::parseSelectStatement(SelectStatement& selectStmt)
         int limitValue = std::stoi(expect(TokenType::INTEGER, "expected integer after LIMIT").value);
         selectStmt.limit = limitValue;
     }
+
+    expect(TokenType::SEMICOLON, "expected ';' after SELECT statement");
+    return;
 }
 
 void Parser::parseInsertStatement(InsertStatement& insertStmt)
@@ -468,7 +490,7 @@ void Parser::parseInsertStatement(InsertStatement& insertStmt)
         }
 
         expect(TokenType::RPAREN, "expected a ')'");
-        values.push_back(expressions);
+        values.push_back(std::move(expressions));
         
         if(!match(TokenType::COMMA))
         {

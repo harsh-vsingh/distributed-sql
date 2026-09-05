@@ -93,7 +93,7 @@ struct TableSource
     std::optional<std::string> alias;
 };
 
-enum class JoinType { INNER, LEFT, RIGHT, OUTER };
+enum class JoinType { INNER, LEFT, RIGHT};
 
 struct JoinClause
 {

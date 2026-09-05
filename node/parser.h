@@ -45,7 +45,7 @@ class Parser
     Token& expect(TokenType type, const std::string& errorMessage);
 
 public:
-    Parser(std::vector<Token>& tokens) : tokens(tokens), pos(0) {}
+    Parser(std::vector<Token> tokens) : tokens(std::move(tokens)), pos(0) {}
 
     void setTokens(std::vector<Token>& newTokens);
     std::vector<Statement> parseAll();
