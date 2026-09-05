@@ -43,6 +43,8 @@ enum class BinaryOp
 
 enum class UnaryOp { NOT, NEGATE };
 
+struct AllColumns {};
+
 struct BinaryExpr;
 struct UnaryExpr;
 struct FunctionCall;
@@ -50,6 +52,7 @@ struct FunctionCall;
 using Expr = std::variant<
     Literal,
     ColumnRef,
+    AllColumns,
     std::unique_ptr<BinaryExpr>,
     std::unique_ptr<UnaryExpr>,
     std::unique_ptr<FunctionCall>
@@ -90,7 +93,7 @@ struct TableSource
     std::optional<std::string> alias;
 };
 
-enum class JoinType { INNER, LEFT, RIGHT };
+enum class JoinType { INNER, LEFT, RIGHT, OUTER };
 
 struct JoinClause
 {
@@ -122,7 +125,7 @@ struct SelectStatement
 {
     std::vector<SelectColumn> columns;
     bool distinct = false;
-    TableSource from;
+    std::vector<TableSource> from;
     std::vector<JoinClause> joins;
     std::optional<Expr> where;
     std::vector<Expr> groupBy;

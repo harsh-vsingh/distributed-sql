@@ -154,6 +154,10 @@ Expr Parser::parsePrimaryExpression()
     {
         return parseAggregateFunctionCall();
     }
+    else if(match(TokenType::STAR))
+    {
+        return AllColumns{};
+    }
 
     throw std::runtime_error("Unexpected token: " + peek().value);
 }
@@ -303,22 +307,221 @@ Expr Parser::parseExpression()
 // Statement parsing
 void Parser::parseSelectStatement(SelectStatement& selectStmt)
 {
-    // Implementation for parsing SELECT statement
+    std::vector<SelectColumn> columns;
+
+    while(true)
+    {
+        Expr expr = parseExpression();
+        std::optional<std::string> alias;
+
+        if(match(TokenType::AS))
+        {
+            alias = expect(TokenType::IDENTIFIER, "expected alias after AS").value;
+        }
+
+        columns.push_back(SelectColumn{std::move(expr), std::move(alias)});
+
+        if(!match(TokenType::COMMA))
+            break;
+    }
+    selectStmt.columns = std::move(columns);
+
+    expect(TokenType::FROM, "expected FROM after column list");
+
+    std::vector<TableSource> from;
+    while(true)
+    {
+        std::string tableName = expect(TokenType::IDENTIFIER, "expected table name after FROM").value;
+        std::optional<std::string> alias;
+
+        if(match(TokenType::AS))
+        {
+            alias = expect(TokenType::IDENTIFIER, "expected alias after AS").value;
+        }
+
+        from.push_back(TableSource{tableName, std::move(alias)});
+
+        if(!match(TokenType::COMMA))
+            break;
+    }
+    selectStmt.from = std::move(from);
+
+    // join
+    if(match(TokenType::JOIN) || match(TokenType::INNER) || match(TokenType::LEFT) ||
+       match(TokenType::RIGHT) || match(TokenType::OUTER))
+    {
+        JoinType joinType;
+
+        if(tokens[pos - 1].type == TokenType::JOIN)
+            joinType = JoinType::INNER;
+        else if(tokens[pos - 1].type == TokenType::INNER)
+            joinType = JoinType::INNER;
+        else if(tokens[pos - 1].type == TokenType::LEFT)
+            joinType = JoinType::LEFT;
+        else if(tokens[pos - 1].type == TokenType::RIGHT)
+            joinType = JoinType::RIGHT;
+        else if(tokens[pos - 1].type == TokenType::OUTER)
+            joinType = JoinType::OUTER;
+
+        std::string tableName = expect(TokenType::IDENTIFIER, "expected table name after JOIN").value;
+        std::optional<std::string> alias;
+
+        if(match(TokenType::AS))
+        {
+            alias = expect(TokenType::IDENTIFIER, "expected alias after AS").value;
+        }
+
+        expect(TokenType::ON, "expected ON after table name in JOIN clause");
+        Expr onExpr = parseExpression();
+
+        selectStmt.joins.push_back(JoinClause{joinType, TableSource{tableName, std::move(alias)}, std::move(onExpr)});
+    }
+    
+    if(match(TokenType::WHERE))
+    {
+        selectStmt.where = parseExpression();
+    }
+
+    if(match(TokenType::GROUP))
+    {
+        expect(TokenType::BY, "expected BY after GROUP");
+        std::vector<Expr> groupBy;
+
+        while(true)
+        {
+            groupBy.push_back(parseExpression());
+            if(!match(TokenType::COMMA))
+                break;
+        }
+        selectStmt.groupBy = std::move(groupBy);
+
+        if(match(TokenType::HAVING))
+        {
+            selectStmt.having = parseExpression();
+        }
+    }
+
+    if(match(TokenType::ORDER))
+    {
+        expect(TokenType::BY, "expected BY after ORDER");
+        std::vector<OrderByClause> orderBy;
+
+        while(true)
+        {
+            Expr expr = parseExpression();
+            OrderDir dir = OrderDir::ASC;
+
+            if(match(TokenType::ASC))
+                dir = OrderDir::ASC;
+            else if(match(TokenType::DESC))
+                dir = OrderDir::DESC;
+
+            orderBy.push_back(OrderByClause{std::move(expr), dir});
+
+            if(!match(TokenType::COMMA))
+                break;
+        }
+        selectStmt.orderBy = std::move(orderBy);
+    }
+
+    if(match(TokenType::LIMIT))
+    {
+        int limitValue = std::stoi(expect(TokenType::INTEGER, "expected integer after LIMIT").value);
+        selectStmt.limit = limitValue;
+    }
 }
 
 void Parser::parseInsertStatement(InsertStatement& insertStmt)
 {
-    // Implementation for parsing INSERT statement
+    expect(TokenType::INTO, "expected INTO after INSERT");
+    insertStmt.tableName = expect(TokenType::IDENTIFIER, "expected table name after INTO").value;
+
+    std::vector<std::string> columns;
+    if(match(TokenType::LPAREN))
+    {
+        while(true)
+        {
+            columns.push_back(expect(TokenType::IDENTIFIER, "expected column name").value);
+            if(!match(TokenType::COMMA))
+                break;
+        }
+        expect(TokenType::RPAREN, "expected ')' after column list");
+    }
+    insertStmt.columns = std::move(columns);
+
+    expect(TokenType::VALUES, "expected VALUES after table name and columns");
+  
+    std::vector<std::vector<Expr>> values;
+
+    while(true)
+    {
+        expect(TokenType::LPAREN, "expected a '(' ");
+        std::vector<Expr> expressions;
+
+        while(true)
+        {
+            expressions.push_back(parseExpression());
+            if(!match(TokenType::COMMA))
+            {
+                break;
+            }
+        }
+
+        expect(TokenType::RPAREN, "expected a ')'");
+        values.push_back(expressions);
+        
+        if(!match(TokenType::COMMA))
+        {
+            break;
+        }
+    }
+    expect(TokenType::SEMICOLON, "expected a ; after INSERT");
+    insertStmt.values = std::move(values);
+
+    return;
 }
 
 void Parser::parseUpdateStatement(UpdateStatement& updateStmt)
 {
-    // Implementation for parsing UPDATE statement
+    updateStmt.tableName = expect(TokenType::IDENTIFIER, "expected table name").value;
+    expect(TokenType::SET, "expected SET after table name");
+
+    std::vector<std::pair<std::string, Expr>> assignments;
+
+    while(true)
+    {
+        expect(TokenType::IDENTIFIER, "expected column name");
+        std::string columnName = tokens[pos - 1].value;
+
+        expect(TokenType::EQ, "expected '=' after column name");
+        Expr value = parseExpression();
+
+        assignments.push_back({columnName, std::move(value)});
+
+        if(!match(TokenType::COMMA))
+            break;
+    }
+    updateStmt.assignments = std::move(assignments);
+
+    if(match(TokenType::WHERE))
+        updateStmt.where = parseExpression();
+
+    return;
 }
 
 void Parser::parseDeleteStatement(DeleteStatement& deleteStmt)
 {
-    // Implementation for parsing DELETE statement
+    expect(TokenType::FROM, "expected FROM after DELETE");
+    deleteStmt.tableName = expect(TokenType::IDENTIFIER, "expected table name").value;
+
+    if(match(TokenType::WHERE))
+    {
+        deleteStmt.where = parseExpression();
+    }
+
+    expect(TokenType::SEMICOLON, "expected ';' after DELETE statement");
+    
+    return;
 }
 
 void Parser::parseCreateTableStatement(CreateTableStatement& createStmt)
