@@ -3,18 +3,13 @@
 #include <utility>
 
 // Helper functions
-void Parser::setTokens(std::vector<Token>& newTokens)
-{
-    tokens = newTokens;
-    pos = 0;
-}
 
-Token& Parser::peek()
+Token& Parser::peek(std::vector<Token>& tokens,std::size_t& pos)
 {
     return tokens[pos];
 }
 
-Token& Parser::advance()
+Token& Parser::advance(std::vector<Token>& tokens, std::size_t& pos)
 {
     Token& current = tokens[pos];
 
@@ -24,27 +19,27 @@ Token& Parser::advance()
     return current;
 }
 
-bool Parser::check(TokenType type)
+bool Parser::check(TokenType type, std::vector<Token>& tokens, std::size_t& pos)
 {
     return pos < tokens.size() && tokens[pos].type == type;
 }
 
-bool Parser::match(TokenType type)
+bool Parser::match(TokenType type, std::vector<Token>& tokens, std::size_t& pos)
 {
-    if(check(type))
+    if(check(type, tokens, pos))
     {
-        advance();
+        advance(tokens, pos);
         return true;
     }
     return false;
 }
 
-Token& Parser::expect(TokenType type, const std::string& message)
+Token& Parser::expect(TokenType type, const std::string& message, std::vector<Token>& tokens, std::size_t& pos)
 {
-    if (check(type))
-        return advance();
+    if(check(type, tokens, pos))
+        return advance(tokens, pos);
 
-    const Token& token = peek();
+    const Token& token = peek(tokens, pos);
 
     throw std::runtime_error(
         "Error at line " + std::to_string(token.line) +
@@ -54,7 +49,7 @@ Token& Parser::expect(TokenType type, const std::string& message)
 }
 
 // Expression parsing
-Expr Parser::parseAggregateFunctionCall()
+Expr Parser::parseAggregateFunctionCall(std::vector<Token>& tokens, std::size_t& pos)
 {
     Token funcToken = tokens[pos - 1];
     AggFunc func;
@@ -78,96 +73,96 @@ Expr Parser::parseAggregateFunctionCall()
             break;
     }
 
-    expect(TokenType::LPAREN, "expected a left parenthesis");
+    expect(TokenType::LPAREN, "expected a left parenthesis", tokens, pos);
 
     bool star = false;
     std::optional<Expr> arg;
 
-    if(match(TokenType::STAR))
+    if(match(TokenType::STAR, tokens, pos))
     {
         star = true;
     }
-    else if(check(TokenType::IDENTIFIER))
+    else if(check(TokenType::IDENTIFIER, tokens, pos))
     {
-        arg = parseExpression();
+        arg = parseExpression(tokens, pos);
     }
     else
     {
-        throw std::runtime_error("Expected a identifier at position" + pos);
+        throw std::runtime_error("Expected a identifier at position" + std::to_string(pos));
     }
 
-    expect(TokenType::RPAREN, "expected closing parenthesis");
+    expect(TokenType::RPAREN, "expected closing parenthesis", tokens, pos);
 
     FunctionCall call{func, star, std::move(arg)};
     return std::make_unique<FunctionCall>(std::move(call));
 }
 
-Expr Parser::parsePrimaryExpression()
+Expr Parser::parsePrimaryExpression(std::vector<Token>& tokens, std::size_t& pos)
 {
-    if(match(TokenType::INTEGER))
+    if(match(TokenType::INTEGER, tokens, pos))
     {
         int value = std::stoll(tokens[pos - 1].value);
         return Literal{value};
     }
-    else if(match(TokenType::FLOAT))
+    else if(match(TokenType::FLOAT, tokens, pos))
     {
         double value = std::stod(tokens[pos - 1].value);
         return Literal{value};
     }
-    else if(match(TokenType::STRING))
+    else if(match(TokenType::STRING, tokens, pos))
     {
         return Literal{tokens[pos - 1].value};
     }
-    else if(match(TokenType::TRUE_LIT))
+    else if(match(TokenType::TRUE_LIT, tokens, pos))
     {
         return Literal{true};
     }
-    else if(match(TokenType::FALSE_LIT))
+    else if(match(TokenType::FALSE_LIT, tokens, pos))
     {
         return Literal{false};
     }
-    else if(match(TokenType::NULL_LIT))
+    else if(match(TokenType::NULL_LIT, tokens, pos))
     {
         return Literal{nullptr};
     }
-    else if(match(TokenType::IDENTIFIER))
+    else if(match(TokenType::IDENTIFIER, tokens, pos))
     {
         std::string columnName = tokens[pos - 1].value;
         std::string tableName = "";
 
-        if(match(TokenType::DOT))
+        if(match(TokenType::DOT, tokens, pos))
         {
             tableName = columnName;
-            columnName = expect(TokenType::IDENTIFIER, "Expected column name after '.'").value;
+            columnName = expect(TokenType::IDENTIFIER, "Expected column name after '.'", tokens, pos).value;
         }
 
         return ColumnRef{tableName, columnName};
     }
-    else if(match(TokenType::LPAREN))
+    else if(match(TokenType::LPAREN, tokens, pos))
     {
-        Expr expr = parseExpression();
-        expect(TokenType::RPAREN, "Expected ')' after expression");
+        Expr expr = parseExpression(tokens, pos);
+        expect(TokenType::RPAREN, "Expected ')' after expression", tokens, pos);
         return expr;
     }
-    else if(match(TokenType::COUNT) || match(TokenType::SUM) || match(TokenType::AVG) ||
-            match(TokenType::MIN) || match(TokenType::MAX))
+    else if(match(TokenType::COUNT, tokens, pos) || match(TokenType::SUM, tokens, pos) || match(TokenType::AVG, tokens, pos) ||
+            match(TokenType::MIN, tokens, pos) || match(TokenType::MAX, tokens, pos))
     {
-        return parseAggregateFunctionCall();
+        return parseAggregateFunctionCall(tokens, pos);
     }
-    else if(match(TokenType::STAR))
+    else if(match(TokenType::STAR, tokens, pos))
     {
         return AllColumns{};
     }
 
-    throw std::runtime_error("Unexpected token: " + peek().value);
+    throw std::runtime_error("Unexpected token: " + peek(tokens, pos).value);
 }
 
-Expr Parser::parseUnaryExpression()
+Expr Parser::parseUnaryExpression(std::vector<Token>& tokens, std::size_t& pos)
 {
-    if(match(TokenType::NOT) || match(TokenType::MINUS))
+    if(match(TokenType::NOT, tokens, pos) || match(TokenType::MINUS, tokens, pos))
     {
         Token opToken = tokens[pos - 1];
-        Expr operand = parseUnaryExpression();
+        Expr operand = parseUnaryExpression(tokens, pos);
 
         UnaryOp op;
         switch(opToken.type)
@@ -183,17 +178,17 @@ Expr Parser::parseUnaryExpression()
         }
         return std::make_unique<UnaryExpr>(UnaryExpr{op, std::move(operand)});
     }
-    return parsePrimaryExpression();
+    return parsePrimaryExpression(tokens, pos);
 }
 
-Expr Parser::parseMultiplicativeExpression()
+Expr Parser::parseMultiplicativeExpression(std::vector<Token>& tokens, std::size_t& pos)
 {
-    Expr left = parseUnaryExpression();
+    Expr left = parseUnaryExpression(tokens, pos);
 
-    while(match(TokenType::STAR) || match(TokenType::SLASH))
+    while(match(TokenType::STAR, tokens, pos) || match(TokenType::SLASH, tokens, pos))
     {
         Token opToken = tokens[pos - 1];
-        Expr right = parseUnaryExpression();
+        Expr right = parseUnaryExpression(tokens, pos);
 
         BinaryOp op;
         switch(opToken.type)
@@ -212,14 +207,14 @@ Expr Parser::parseMultiplicativeExpression()
     return left;
 }
 
-Expr Parser::parseAdditiveExpression()
+Expr Parser::parseAdditiveExpression(std::vector<Token>& tokens, std::size_t& pos)
 {
-    Expr left = parseMultiplicativeExpression();
+    Expr left = parseMultiplicativeExpression(tokens, pos);
 
-    while(match(TokenType::PLUS) || match(TokenType::MINUS))
+    while(match(TokenType::PLUS, tokens, pos) || match(TokenType::MINUS, tokens, pos))
     {
         Token opToken = tokens[pos - 1];
-        Expr right = parseMultiplicativeExpression();
+        Expr right = parseMultiplicativeExpression(tokens, pos);
 
         BinaryOp op;
         switch(opToken.type)
@@ -238,15 +233,15 @@ Expr Parser::parseAdditiveExpression()
     return left;
 }
 
-Expr Parser::parseComparisonExpression()
+Expr Parser::parseComparisonExpression(std::vector<Token>& tokens, std::size_t& pos)
 {
-    Expr left = parseAdditiveExpression();
+    Expr left = parseAdditiveExpression(tokens, pos);
 
-    while(match(TokenType::EQ) || match(TokenType::NEQ) || match(TokenType::LT) ||
-          match(TokenType::GT) || match(TokenType::LTE) || match(TokenType::GTE))
+    while(match(TokenType::EQ, tokens, pos) || match(TokenType::NEQ, tokens, pos) || match(TokenType::LT, tokens, pos) ||
+          match(TokenType::GT, tokens, pos) || match(TokenType::LTE, tokens, pos) || match(TokenType::GTE, tokens, pos))
     {
         Token opToken = tokens[pos - 1];
-        Expr right = parseAdditiveExpression();
+        Expr right = parseAdditiveExpression(tokens, pos);
 
         BinaryOp op;
         switch(opToken.type)
@@ -277,110 +272,110 @@ Expr Parser::parseComparisonExpression()
     return left;
 }
 
-Expr Parser::parseLogicalAndExpression()
+Expr Parser::parseLogicalAndExpression(std::vector<Token>& tokens, std::size_t& pos)
 {
-    Expr left = parseComparisonExpression();
-    while(match(TokenType::AND))
+    Expr left = parseComparisonExpression(tokens, pos);
+    while(match(TokenType::AND, tokens, pos))
     {
-        Expr right = parseComparisonExpression();
+        Expr right = parseComparisonExpression(tokens, pos);
         left = std::make_unique<BinaryExpr>(BinaryExpr{std::move(left), BinaryOp::AND, std::move(right)});
     }
     return left;
 }
 
-Expr Parser::parseLogicalOrExpression()
+Expr Parser::parseLogicalOrExpression(std::vector<Token>& tokens, std::size_t& pos)
 {
-    Expr left = parseLogicalAndExpression();
-    while(match(TokenType::OR))
+    Expr left = parseLogicalAndExpression(tokens, pos);
+    while(match(TokenType::OR, tokens, pos))
     {
-        Expr right = parseLogicalAndExpression();
+        Expr right = parseLogicalAndExpression(tokens, pos);
         left = std::make_unique<BinaryExpr>(BinaryExpr{std::move(left), BinaryOp::OR, std::move(right)});
     }
     return left;
 }
 
-Expr Parser::parseExpression()
+Expr Parser::parseExpression(std::vector<Token>& tokens, std::size_t& pos)
 {
-    return parseLogicalOrExpression();
+    return parseLogicalOrExpression(tokens, pos);
 }
 
 // Statement parsing
-void Parser::parseSelectStatement(SelectStatement& selectStmt)
+void Parser::parseSelectStatement(SelectStatement& selectStmt, std::vector<Token>& tokens, std::size_t& pos)
 {
     std::vector<SelectColumn> columns;
 
-    if(match(TokenType::DISTINCT))
+    if(match(TokenType::DISTINCT, tokens, pos))
     {
         selectStmt.distinct = true;
     }
 
     while(true)
     {
-        Expr expr = parseExpression();
+        Expr expr = parseExpression(tokens, pos);
         std::optional<std::string> alias;
 
-        if(match(TokenType::AS))
+        if(match(TokenType::AS, tokens, pos))
         {
-            alias = expect(TokenType::IDENTIFIER, "expected alias after AS").value;
+            alias = expect(TokenType::IDENTIFIER, "expected alias after AS", tokens, pos).value;
         }
 
         columns.push_back(SelectColumn{std::move(expr), std::move(alias)});
 
-        if(!match(TokenType::COMMA))
+        if(!match(TokenType::COMMA, tokens, pos))
             break;
     }
     selectStmt.columns = std::move(columns);
 
-    expect(TokenType::FROM, "expected FROM after column list");
+    expect(TokenType::FROM, "expected FROM after column list", tokens, pos);
 
     std::vector<TableSource> from;
     while(true)
     {
-        std::string tableName = expect(TokenType::IDENTIFIER, "expected table name after FROM").value;
+        std::string tableName = expect(TokenType::IDENTIFIER, "expected table name after FROM", tokens, pos).value;
         std::optional<std::string> alias;
 
-        if(match(TokenType::AS))
+        if(match(TokenType::AS, tokens, pos))
         {
-            alias = expect(TokenType::IDENTIFIER, "expected alias after AS").value;
+            alias = expect(TokenType::IDENTIFIER, "expected alias after AS", tokens, pos).value;
         }
 
         from.push_back(TableSource{tableName, std::move(alias)});
 
-        if(!match(TokenType::COMMA))
+        if(!match(TokenType::COMMA, tokens, pos))
             break;
     }
     selectStmt.from = std::move(from);
 
     std::vector<JoinClause> joins;
-    while(match(TokenType::JOIN) || match(TokenType::INNER) || 
-       match(TokenType::LEFT) || match(TokenType::RIGHT))
+    while(match(TokenType::JOIN, tokens, pos) || match(TokenType::INNER, tokens, pos) || 
+       match(TokenType::LEFT, tokens, pos) || match(TokenType::RIGHT, tokens, pos))
     {
         JoinType joinType;
         if(tokens[pos - 1].type == TokenType::JOIN)
             joinType = JoinType::INNER;
         else if(tokens[pos - 1].type == TokenType::INNER)
         {
-            expect(TokenType::JOIN, "expected JOIN after INNER");
+            expect(TokenType::JOIN, "expected JOIN after INNER", tokens, pos);
             joinType = JoinType::INNER;
         }
         else if(tokens[pos - 1].type == TokenType::LEFT)
         {
-            expect(TokenType::JOIN, "expected JOIN after LEFT");
+            expect(TokenType::JOIN, "expected JOIN after LEFT", tokens, pos);
             joinType = JoinType::LEFT;
         }
         else if(tokens[pos - 1].type == TokenType::RIGHT)
         {
-            expect(TokenType::JOIN, "expected JOIN after RIGHT");
+            expect(TokenType::JOIN, "expected JOIN after RIGHT", tokens, pos);
             joinType = JoinType::RIGHT;
         }
 
-        expect(TokenType::IDENTIFIER, "expected table name after JOIN");
+        expect(TokenType::IDENTIFIER, "expected table name after JOIN", tokens, pos);
         std::string tableName = tokens[pos - 1].value;
 
         TableSource tableSource;
-        if(match(TokenType::AS))
+        if(match(TokenType::AS, tokens, pos))
         {
-            std::string alias = expect(TokenType::IDENTIFIER, "expected alias after AS").value;
+            std::string alias = expect(TokenType::IDENTIFIER, "expected alias after AS", tokens, pos).value;
             tableSource = TableSource{tableName, alias};
         }
         else
@@ -388,337 +383,336 @@ void Parser::parseSelectStatement(SelectStatement& selectStmt)
             tableSource = TableSource{tableName, std::nullopt};
         }
 
-        expect(TokenType::ON, "expected ON after table name in JOIN clause");
-        Expr onExpr = parseExpression();
+        expect(TokenType::ON, "expected ON after table name in JOIN clause", tokens, pos);
+        Expr onExpr = parseExpression(tokens, pos);
 
         JoinClause joinClause{joinType, std::move(tableSource), std::move(onExpr)};
         joins.push_back(std::move(joinClause));
     }
     selectStmt.joins = std::move(joins);
     
-    if(match(TokenType::WHERE))
+    if(match(TokenType::WHERE, tokens, pos))
     {
-        selectStmt.where = parseExpression();
+        selectStmt.where = parseExpression(tokens, pos);
     }
 
-    if(match(TokenType::GROUP))
+    if(match(TokenType::GROUP, tokens, pos))
     {
-        expect(TokenType::BY, "expected BY after GROUP");
+        expect(TokenType::BY, "expected BY after GROUP", tokens, pos);
         std::vector<Expr> groupBy;
 
         while(true)
         {
-            groupBy.push_back(parseExpression());
-            if(!match(TokenType::COMMA))
+            groupBy.push_back(parseExpression(tokens, pos));
+            if(!match(TokenType::COMMA, tokens, pos))
                 break;
         }
         selectStmt.groupBy = std::move(groupBy);
     }
 
-    if(match(TokenType::HAVING))
+    if(match(TokenType::HAVING, tokens, pos))
     {
-        selectStmt.having = parseExpression();
+        selectStmt.having = parseExpression(tokens, pos);
     }
 
-    if(match(TokenType::ORDER))
+    if(match(TokenType::ORDER, tokens, pos))
     {
-        expect(TokenType::BY, "expected BY after ORDER");
+        expect(TokenType::BY, "expected BY after ORDER", tokens, pos);
         std::vector<OrderByClause> orderBy;
 
         while(true)
         {
-            Expr expr = parseExpression();
+            Expr expr = parseExpression(tokens, pos);
             OrderDir dir = OrderDir::ASC;
 
-            if(match(TokenType::ASC))
+            if(match(TokenType::ASC, tokens, pos))
                 dir = OrderDir::ASC;
-            else if(match(TokenType::DESC))
+            else if(match(TokenType::DESC, tokens, pos))
                 dir = OrderDir::DESC;
 
             orderBy.push_back(OrderByClause{std::move(expr), dir});
 
-            if(!match(TokenType::COMMA))
+            if(!match(TokenType::COMMA, tokens, pos))
                 break;
         }
         selectStmt.orderBy = std::move(orderBy);
     }
 
-    if(match(TokenType::LIMIT))
+    if(match(TokenType::LIMIT, tokens, pos))
     {
-        int limitValue = std::stoi(expect(TokenType::INTEGER, "expected integer after LIMIT").value);
+        int limitValue = std::stoi(expect(TokenType::INTEGER, "expected integer after LIMIT", tokens, pos).value);
         selectStmt.limit = limitValue;
     }
 
-    expect(TokenType::SEMICOLON, "expected ';' after SELECT statement");
+    expect(TokenType::SEMICOLON, "expected ';' after SELECT statement", tokens, pos);
     return;
 }
 
-void Parser::parseInsertStatement(InsertStatement& insertStmt)
+void Parser::parseInsertStatement(InsertStatement& insertStmt, std::vector<Token>& tokens, std::size_t& pos)
 {
-    expect(TokenType::INTO, "expected INTO after INSERT");
-    insertStmt.tableName = expect(TokenType::IDENTIFIER, "expected table name after INTO").value;
+    expect(TokenType::INTO, "expected INTO after INSERT", tokens, pos);
+    insertStmt.tableName = expect(TokenType::IDENTIFIER, "expected table name after INTO", tokens, pos).value;
 
     std::vector<std::string> columns;
-    if(match(TokenType::LPAREN))
+    if(match(TokenType::LPAREN, tokens, pos))
     {
         while(true)
         {
-            columns.push_back(expect(TokenType::IDENTIFIER, "expected column name").value);
-            if(!match(TokenType::COMMA))
+            columns.push_back(expect(TokenType::IDENTIFIER, "expected column name", tokens, pos).value);
+            if(!match(TokenType::COMMA, tokens, pos))
                 break;
         }
-        expect(TokenType::RPAREN, "expected ')' after column list");
+        expect(TokenType::RPAREN, "expected ')' after column list", tokens, pos);
     }
     insertStmt.columns = std::move(columns);
 
-    expect(TokenType::VALUES, "expected VALUES after table name and columns");
+    expect(TokenType::VALUES, "expected VALUES after table name and columns", tokens, pos);
   
     std::vector<std::vector<Expr>> values;
 
     while(true)
     {
-        expect(TokenType::LPAREN, "expected a '(' ");
+        expect(TokenType::LPAREN, "expected a '(' ", tokens, pos);
         std::vector<Expr> expressions;
 
         while(true)
         {
-            expressions.push_back(parseExpression());
-            if(!match(TokenType::COMMA))
+            expressions.push_back(parseExpression(tokens, pos));
+            if(!match(TokenType::COMMA, tokens, pos))
             {
                 break;
             }
         }
 
-        expect(TokenType::RPAREN, "expected a ')'");
+        expect(TokenType::RPAREN, "expected a ')'", tokens, pos);
         values.push_back(std::move(expressions));
         
-        if(!match(TokenType::COMMA))
+        if(!match(TokenType::COMMA, tokens, pos))
         {
             break;
         }
     }
-    expect(TokenType::SEMICOLON, "expected a ; after INSERT");
+    expect(TokenType::SEMICOLON, "expected a ; after INSERT", tokens, pos);
     insertStmt.values = std::move(values);
 
     return;
 }
 
-void Parser::parseUpdateStatement(UpdateStatement& updateStmt)
+void Parser::parseUpdateStatement(UpdateStatement& updateStmt, std::vector<Token>& tokens, std::size_t& pos)
 {
-    updateStmt.tableName = expect(TokenType::IDENTIFIER, "expected table name").value;
-    expect(TokenType::SET, "expected SET after table name");
+    updateStmt.tableName = expect(TokenType::IDENTIFIER, "expected table name", tokens, pos).value;
+    expect(TokenType::SET, "expected SET after table name", tokens, pos);
 
     std::vector<std::pair<std::string, Expr>> assignments;
 
     while(true)
     {
-        expect(TokenType::IDENTIFIER, "expected column name");
+        expect(TokenType::IDENTIFIER, "expected column name", tokens, pos);
         std::string columnName = tokens[pos - 1].value;
 
-        expect(TokenType::EQ, "expected '=' after column name");
-        Expr value = parseExpression();
+        expect(TokenType::EQ, "expected '=' after column name", tokens, pos);
+        Expr value = parseExpression(tokens, pos);
 
         assignments.push_back({columnName, std::move(value)});
 
-        if(!match(TokenType::COMMA))
+        if(!match(TokenType::COMMA, tokens, pos))
             break;
     }
     updateStmt.assignments = std::move(assignments);
 
-    if(match(TokenType::WHERE))
-        updateStmt.where = parseExpression();
+    if(match(TokenType::WHERE, tokens, pos))
+        updateStmt.where = parseExpression(tokens, pos);
 
     return;
 }
 
-void Parser::parseDeleteStatement(DeleteStatement& deleteStmt)
+void Parser::parseDeleteStatement(DeleteStatement& deleteStmt, std::vector<Token>& tokens, std::size_t& pos)
 {
-    expect(TokenType::FROM, "expected FROM after DELETE");
-    deleteStmt.tableName = expect(TokenType::IDENTIFIER, "expected table name").value;
+    expect(TokenType::FROM, "expected FROM after DELETE", tokens, pos);
+    deleteStmt.tableName = expect(TokenType::IDENTIFIER, "expected table name", tokens, pos).value;
 
-    if(match(TokenType::WHERE))
+    if(match(TokenType::WHERE, tokens, pos))
     {
-        deleteStmt.where = parseExpression();
+        deleteStmt.where = parseExpression(tokens, pos);
     }
 
-    expect(TokenType::SEMICOLON, "expected ';' after DELETE statement");
+    expect(TokenType::SEMICOLON, "expected ';' after DELETE statement", tokens, pos);
     
     return;
 }
 
-void Parser::parseCreateTableStatement(CreateTableStatement& createStmt)
+void Parser::parseCreateTableStatement(CreateTableStatement& createStmt, std::vector<Token>& tokens, std::size_t& pos)
 {
-    createStmt.tableName = expect(TokenType::IDENTIFIER, "Expected table name after CREATE TABLE").value;
-    expect(TokenType::LPAREN, "Expected '(' after table name");
+    createStmt.tableName = expect(TokenType::IDENTIFIER, "Expected table name after CREATE TABLE", tokens, pos).value;
+    expect(TokenType::LPAREN, "Expected '(' after table name", tokens, pos);
 
-    while(peek().type != TokenType::RPAREN)
+    while(peek(tokens, pos).type != TokenType::RPAREN)
     {
         ColumnDef column;
-        column.name = expect(TokenType::IDENTIFIER, "Expected column name").value;
+        column.name = expect(TokenType::IDENTIFIER, "Expected column name", tokens, pos).value;
 
-        if(match(TokenType::INT))
+        if(match(TokenType::INT, tokens, pos))
             column.type = IntType{};
-        else if(match(TokenType::BOOL))
+        else if(match(TokenType::BOOL, tokens, pos))
             column.type = BoolType{};
-        else if(match(TokenType::FLOAT_TYPE))
+        else if(match(TokenType::FLOAT_TYPE, tokens, pos))
             column.type = FloatType{};
-        else if(match(TokenType::VARCHAR))
+        else if(match(TokenType::VARCHAR, tokens, pos))
         {
-            expect(TokenType::LPAREN, "Expected '(' after VARCHAR");
-            int length = std::stoi(expect(TokenType::INTEGER, "Expected length for VARCHAR").value);
-            expect(TokenType::RPAREN, "Expected ')' after VARCHAR length");
+            expect(TokenType::LPAREN, "Expected '(' after VARCHAR", tokens, pos);
+            int length = std::stoi(expect(TokenType::INTEGER, "Expected length for VARCHAR", tokens, pos).value);
+            expect(TokenType::RPAREN, "Expected ')' after VARCHAR length", tokens, pos);
             column.type = VarCharType{length};
         }
-        else if(match(TokenType::TIMESTAMP))
+        else if(match(TokenType::TIMESTAMP, tokens, pos))
             column.type = TimestampType{};
         else
             throw std::runtime_error("Expected data type for column " + column.name);
 
-        while(peek().type != TokenType::COMMA && peek().type != TokenType::RPAREN)
+        while(peek(tokens, pos).type != TokenType::COMMA && peek(tokens, pos).type != TokenType::RPAREN)
         {
-            if(match(TokenType::PRIMARY))
+            if(match(TokenType::PRIMARY, tokens, pos))
             {
-                expect(TokenType::KEY, "Expected KEY after PRIMARY");
+                expect(TokenType::KEY, "Expected KEY after PRIMARY", tokens, pos);
                 column.primaryKey = true;
             }
-            else if(match(TokenType::NOT))
+            else if(match(TokenType::NOT, tokens, pos))
             {
-                expect(TokenType::NULL_LIT, "Expected NULL after NOT");
+                expect(TokenType::NULL_LIT, "Expected NULL after NOT", tokens, pos);
                 column.nullable = false;
             }
-            else if(match(TokenType::UNIQUE))
+            else if(match(TokenType::UNIQUE, tokens, pos))
             {
                 column.unique = true;
             }
             else
             {
-                throw std::runtime_error("Unexpected token in column definition: " + peek().value);
+                throw std::runtime_error("Unexpected token in column definition: " + peek(tokens, pos).value);
             }
         }
 
         createStmt.columns.push_back(std::move(column));
 
-        if(peek().type == TokenType::COMMA)
-            advance();
+        if(peek(tokens, pos).type == TokenType::COMMA)
+            advance(tokens, pos);
     }
 
-    expect(TokenType::RPAREN, "Expected ')' after column definitions");
-    expect(TokenType::SEMICOLON, "Expected ';' after CREATE TABLE statement");
+    expect(TokenType::RPAREN, "Expected ')' after column definitions", tokens, pos);
+    expect(TokenType::SEMICOLON, "Expected ';' after CREATE TABLE statement", tokens, pos);
     return;
 }
 
-void Parser::parseCreateIndexStatement(CreateIndexStatement& createStmt)
+void Parser::parseCreateIndexStatement(CreateIndexStatement& createStmt, std::vector<Token>& tokens, std::size_t& pos)
 {
-    createStmt.indexName = expect(TokenType::IDENTIFIER, "Expected index name after CREATE INDEX").value;
-    expect(TokenType::ON, "Expected ON after index name");
+    createStmt.indexName = expect(TokenType::IDENTIFIER, "Expected index name after CREATE INDEX", tokens, pos).value;
+    expect(TokenType::ON, "Expected ON after index name", tokens, pos);
 
-    createStmt.tableName = expect(TokenType::IDENTIFIER, "Expected table name after ON").value;
-    expect(TokenType::LPAREN, "Expected '(' after table name");
+    createStmt.tableName = expect(TokenType::IDENTIFIER, "Expected table name after ON", tokens, pos).value;
+    expect(TokenType::LPAREN, "Expected '(' after table name", tokens, pos);
 
-    createStmt.column = expect(TokenType::IDENTIFIER, "Expected column name after '('").value;
-    expect(TokenType::RPAREN, "Expected ')' after column name");
-    expect(TokenType::SEMICOLON, "Expected ';' after CREATE INDEX statement");
+    createStmt.column = expect(TokenType::IDENTIFIER, "Expected column name after '('", tokens, pos).value;
+    expect(TokenType::RPAREN, "Expected ')' after column name", tokens, pos);
+    expect(TokenType::SEMICOLON, "Expected ';' after CREATE INDEX statement", tokens, pos);
 
     return;
 }
 
-void Parser::parseDropTableStatement(DropTableStatement& dropStmt)
+void Parser::parseDropTableStatement(DropTableStatement& dropStmt, std::vector<Token>& tokens, std::size_t& pos)
 {
-    dropStmt.tableName = expect(TokenType::IDENTIFIER, "Expected table name after DROP TABLE").value;
-    expect(TokenType::SEMICOLON, "Expected ';' after DROP TABLE statement");
+    dropStmt.tableName = expect(TokenType::IDENTIFIER, "Expected table name after DROP TABLE", tokens, pos).value;
+    expect(TokenType::SEMICOLON, "Expected ';' after DROP TABLE statement", tokens, pos);
     return;
 }
 
-void Parser::parseDropIndexStatement(DropIndexStatement& dropStmt)
+void Parser::parseDropIndexStatement(DropIndexStatement& dropStmt, std::vector<Token>& tokens, std::size_t& pos)
 {
-    dropStmt.indexName = expect(TokenType::IDENTIFIER, "Expected index name after DROP INDEX").value;
-    expect(TokenType::SEMICOLON, "Expected ';' after DROP INDEX statement");
+    dropStmt.indexName = expect(TokenType::IDENTIFIER, "Expected index name after DROP INDEX", tokens, pos).value;
+    expect(TokenType::SEMICOLON, "Expected ';' after DROP INDEX statement", tokens, pos);
     return;
 }
 
-void Parser::parseBeginStatement(BeginStatement& beginStmt)
+void Parser::parseBeginStatement(BeginStatement& beginStmt, std::vector<Token>& tokens, std::size_t& pos)
 {
-    expect(TokenType::SEMICOLON, "Expected ';' after BEGIN statement");
+    expect(TokenType::SEMICOLON, "Expected ';' after BEGIN statement", tokens, pos);
     return;
 }
 
-void Parser::parseCommitStatement(CommitStatement& commitStmt)
+void Parser::parseCommitStatement(CommitStatement& commitStmt, std::vector<Token>& tokens, std::size_t& pos)
 {
-    expect(TokenType::SEMICOLON, "Expected ';' after COMMIT statement");
+    expect(TokenType::SEMICOLON, "Expected ';' after COMMIT statement", tokens, pos);
     return;
 }
 
-void Parser::parseRollbackStatement(RollbackStatement& rollbackStmt)
+void Parser::parseRollbackStatement(RollbackStatement& rollbackStmt, std::vector<Token>& tokens, std::size_t& pos)
 {
-    expect(TokenType::SEMICOLON, "Expected ';' after ROLLBACK statement");
+    expect(TokenType::SEMICOLON, "Expected ';' after ROLLBACK statement", tokens, pos);
     return;
 }
 
-
-Statement Parser::parse()
+Statement Parser::parse(std::vector<Token>& tokens, std::size_t& pos)
 {
     if(pos >= tokens.size())
         throw std::runtime_error("No more tokens to parse");
 
     Statement parseStatement;
 
-    switch(peek().type)
+    switch(peek(tokens, pos).type)
     {
         case TokenType::SELECT:
             parseStatement = SelectStatement{};
-            advance();
-            parseSelectStatement(std::get<SelectStatement>(parseStatement));
+            advance(tokens, pos);
+            parseSelectStatement(std::get<SelectStatement>(parseStatement), tokens, pos);
             break;
 
         case TokenType::INSERT:
             parseStatement = InsertStatement{};
-            advance();
-            parseInsertStatement(std::get<InsertStatement>(parseStatement));
+            advance(tokens, pos);
+            parseInsertStatement(std::get<InsertStatement>(parseStatement), tokens, pos);
             break;
 
         case TokenType::UPDATE:
             parseStatement = UpdateStatement{};
-            advance();
-            parseUpdateStatement(std::get<UpdateStatement>(parseStatement));
+            advance(tokens, pos);
+            parseUpdateStatement(std::get<UpdateStatement>(parseStatement), tokens, pos);
             break;
 
         case TokenType::DELETE:
             parseStatement = DeleteStatement{};
-            advance();
-            parseDeleteStatement(std::get<DeleteStatement>(parseStatement));
+            advance(tokens, pos);
+            parseDeleteStatement(std::get<DeleteStatement>(parseStatement), tokens, pos);
             break;
 
         case TokenType::CREATE:
-            advance();
-            if(check(TokenType::TABLE))
+            advance(tokens, pos);
+            if(check(TokenType::TABLE, tokens, pos))
             {
                 parseStatement = CreateTableStatement{};
-                advance();
-                parseCreateTableStatement(std::get<CreateTableStatement>(parseStatement));
+                advance(tokens, pos);
+                parseCreateTableStatement(std::get<CreateTableStatement>(parseStatement), tokens, pos);
             }
-            else if(check(TokenType::INDEX))
+            else if(check(TokenType::INDEX, tokens, pos))
             {
                 parseStatement = CreateIndexStatement{};
-                advance();
-                parseCreateIndexStatement(std::get<CreateIndexStatement>(parseStatement));
+                advance(tokens, pos);
+                parseCreateIndexStatement(std::get<CreateIndexStatement>(parseStatement), tokens, pos);
             }
             else
                 throw std::runtime_error("Expected TABLE or INDEX after CREATE");
             break;
 
         case TokenType::DROP:
-            advance();
-            if(check(TokenType::TABLE))
+            advance(tokens, pos);
+            if(check(TokenType::TABLE, tokens, pos))
             {
                 parseStatement = DropTableStatement{};
-                advance();
-                parseDropTableStatement(std::get<DropTableStatement>(parseStatement));
+                advance(tokens, pos);
+                parseDropTableStatement(std::get<DropTableStatement>(parseStatement), tokens, pos);
             }
-            else if(check(TokenType::INDEX))
+            else if(check(TokenType::INDEX, tokens, pos))
             {
                 parseStatement = DropIndexStatement{};
-                advance();
-                parseDropIndexStatement(std::get<DropIndexStatement>(parseStatement));
+                advance(tokens, pos);
+                parseDropIndexStatement(std::get<DropIndexStatement>(parseStatement), tokens, pos);
             }
             else
                 throw std::runtime_error("Expected TABLE or INDEX after DROP");
@@ -726,36 +720,43 @@ Statement Parser::parse()
 
         case TokenType::BEGIN:
             parseStatement = BeginStatement{};
-            advance();
-            parseBeginStatement(std::get<BeginStatement>(parseStatement));
+            advance(tokens, pos);
+            parseBeginStatement(std::get<BeginStatement>(parseStatement), tokens, pos);
             break;
 
         case TokenType::COMMIT:
             parseStatement = CommitStatement{};
-            advance();
-            parseCommitStatement(std::get<CommitStatement>(parseStatement));
+            advance(tokens, pos);
+            parseCommitStatement(std::get<CommitStatement>(parseStatement), tokens, pos);
             break;
 
         case TokenType::ROLLBACK:
             parseStatement = RollbackStatement{};
-            advance();
-            parseRollbackStatement(std::get<RollbackStatement>(parseStatement));
+            advance(tokens, pos);
+            parseRollbackStatement(std::get<RollbackStatement>(parseStatement), tokens, pos);
             break;
 
         default:
-            throw std::runtime_error("Unexpected token: " + peek().value);
+            throw std::runtime_error("Unexpected token: " + peek(tokens, pos).value);
     }
 
     return parseStatement;
 }
 
-std::vector<Statement> Parser::parseAll()
+Statement Parser::parse(std::vector<Token>& tokens)
 {
+    std::size_t pos = 0;
+    return parse(tokens, pos);
+}
+
+std::vector<Statement> Parser::parseAll(std::vector<Token>& tokens)
+{
+    std::size_t pos = 0;
     std::vector<Statement> statements;
 
-    while (peek().type != TokenType::END_OF_FILE)
+    while (peek(tokens, pos).type != TokenType::END_OF_FILE)
     {
-        statements.push_back(parse());
+        statements.push_back(parse(tokens, pos));
     }
 
     return statements;

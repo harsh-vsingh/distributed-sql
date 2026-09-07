@@ -9,33 +9,30 @@
 
 class Lexer
 {
-    std::string source;
     int pos = 0;
     int line = 1;
     int col = 1;
     int lastResolvedTokenPos = -1; // Last token position that was resolved
     int tokenStartLine = 0;        // Line number where the current token starts
     int tokenStartCol = 0;         // Column number where the current token starts
-    std::vector<Token> tokens;
 
-    void advance();
+    void advance(const std::string& source);
+    bool isSpecialChar(const std::string& source);
+    bool isSymbol(const std::string& source);
+    bool isAlpha(const std::string& source);
+    bool isDigit(const std::string& source);
+    bool isComment(const std::string& source);
 
-    bool isSpecialChar();
-    bool isSymbol();
-    bool isAlpha();
-    bool isDigit();
-    bool isComment();
+    void resolveSymbol(const std::string& source, std::vector<Token>& tokens);
+    void resolveUnresolved(const std::string& source, std::vector<Token>& tokens);
+    void resolveSpecialChar(const std::string& source);
+    void resolveString(const std::string& source, std::vector<Token>& tokens);
+    void resolveNumber(const std::string& source, std::vector<Token>& tokens);
+    void skipComment(const std::string& source);
 
-    void resolveSymbol();
-    void resolveUnresolved();
-    void resolveSpecialChar();
-    void resolveString();
-    void resolveNumber();
-    void skipComment();
 
 public:
-    Lexer(const std::string& source) : source(source) {}
+    Lexer() {}
 
-    void setSource(const std::string& newSource);
-    std::vector<Token> tokenize();
+    std::vector<Token> tokenize(const std::string& source);
 };
