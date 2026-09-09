@@ -164,7 +164,7 @@ struct CreateIndexStatement
 {
     std::string indexName;
     std::string tableName;
-    std::string column;
+    std::string columnName;
 };
 
 struct DropTableStatement  { std::string tableName; };

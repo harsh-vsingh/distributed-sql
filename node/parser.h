@@ -8,51 +8,64 @@ class Parser
 {
     // DML statements
     void parseSelectStatement(SelectStatement& selectStmt, 
-        std::vector<Token>& tokens, std::size_t& pos);
+        const std::vector<Token>& tokens, std::size_t& pos) const;
     void parseInsertStatement(InsertStatement& insertStmt, 
-        std::vector<Token>& tokens, std::size_t& pos);
+        const std::vector<Token>& tokens, std::size_t& pos) const;
     void parseUpdateStatement(UpdateStatement& updateStmt, 
-        std::vector<Token>& tokens, std::size_t& pos);
+        const std::vector<Token>& tokens, std::size_t& pos) const;
     void parseDeleteStatement(DeleteStatement& deleteStmt, 
-        std::vector<Token>& tokens, std::size_t& pos);
+        const std::vector<Token>& tokens, std::size_t& pos) const;
 
     // DDL statements
     void parseCreateTableStatement(CreateTableStatement& createStmt, 
-        std::vector<Token>& tokens, std::size_t& pos);
+        const std::vector<Token>& tokens, std::size_t& pos) const;
     void parseCreateIndexStatement(CreateIndexStatement& createStmt, 
-        std::vector<Token>& tokens, std::size_t& pos);
+        const std::vector<Token>& tokens, std::size_t& pos) const;
     void parseDropTableStatement(DropTableStatement& dropStmt, 
-        std::vector<Token>& tokens, std::size_t& pos);
+        const std::vector<Token>& tokens, std::size_t& pos) const;
     void parseDropIndexStatement(DropIndexStatement& dropStmt, 
-        std::vector<Token>& tokens, std::size_t& pos);
+        const std::vector<Token>& tokens, std::size_t& pos) const;
 
     // Transaction statements
-    void parseBeginStatement(BeginStatement& beginStmt, std::vector<Token>& tokens, std::size_t& pos);
-    void parseCommitStatement(CommitStatement& commitStmt, std::vector<Token>& tokens, std::size_t& pos);
-    void parseRollbackStatement(RollbackStatement& rollbackStmt, std::vector<Token>& tokens, std::size_t& pos);
+    void parseBeginStatement(BeginStatement& beginStmt, 
+        const std::vector<Token>& tokens, std::size_t& pos) const;
+    void parseCommitStatement(CommitStatement& commitStmt, 
+        const std::vector<Token>& tokens, std::size_t& pos) const;
+    void parseRollbackStatement(RollbackStatement& rollbackStmt, 
+        const std::vector<Token>& tokens, std::size_t& pos) const;
 
     //Expression parsing
-    Expr parsePrimaryExpression(std::vector<Token>& tokens, std::size_t& pos);
-    Expr parseUnaryExpression(std::vector<Token>& tokens, std::size_t& pos);
-    Expr parseMultiplicativeExpression(std::vector<Token>& tokens, std::size_t& pos);
-    Expr parseAdditiveExpression(std::vector<Token>& tokens, std::size_t& pos);
-    Expr parseComparisonExpression(std::vector<Token>& tokens, std::size_t& pos);
-    Expr parseLogicalAndExpression(std::vector<Token>& tokens, std::size_t& pos);
-    Expr parseLogicalOrExpression(std::vector<Token>& tokens, std::size_t& pos);
-    Expr parseExpression(std::vector<Token>& tokens, std::size_t& pos);
-    Expr parseAggregateFunctionCall(std::vector<Token>& tokens, std::size_t& pos);
+    Expr parsePrimaryExpression(const std::vector<Token>& tokens, 
+        std::size_t& pos) const;
+    Expr parseUnaryExpression(const std::vector<Token>& tokens, 
+        std::size_t& pos) const;
+    Expr parseMultiplicativeExpression(const std::vector<Token>& tokens, 
+        std::size_t& pos) const;
+    Expr parseAdditiveExpression(const std::vector<Token>& tokens, 
+        std::size_t& pos) const;
+    Expr parseComparisonExpression(const std::vector<Token>& tokens, 
+        std::size_t& pos) const;
+    Expr parseLogicalAndExpression(const std::vector<Token>& tokens, 
+        std::size_t& pos) const;
+    Expr parseLogicalOrExpression(const std::vector<Token>& tokens, 
+        std::size_t& pos) const;
+    Expr parseExpression(const std::vector<Token>& tokens, 
+        std::size_t& pos) const;
+    Expr parseAggregateFunctionCall(const std::vector<Token>& tokens, 
+        std::size_t& pos) const;
 
     // Helper functions
-    Token& peek(std::vector<Token>& tokens, std::size_t& pos);
-    Token& advance(std::vector<Token>& tokens, std::size_t& pos);
-    bool check(TokenType type, std::vector<Token>& tokens, std::size_t& pos);
-    bool match (TokenType type, std::vector<Token>& tokens, std::size_t& pos);
-    Token& expect(TokenType type, const std::string& errorMessage, std::vector<Token>& tokens, std::size_t& pos);
+    const Token& peek(const std::vector<Token>& tokens, std::size_t& pos) const;
+    const Token& advance(const std::vector<Token>& tokens, std::size_t& pos) const;
+    bool check(TokenType type, const std::vector<Token>& tokens, std::size_t& pos) const;
+    bool match(TokenType type, const std::vector<Token>& tokens, std::size_t& pos) const;
+    const Token& expect(TokenType type, const std::string& errorMessage, 
+        const std::vector<Token>& tokens, std::size_t& pos) const;
 
 public:
     Parser() {}
 
-    std::vector<Statement> parseAll(std::vector<Token>& tokens);
-    Statement parse(std::vector<Token>& tokens, std::size_t& pos);
-    Statement parse(std::vector<Token>& tokens);
+    Statement parse(const std::vector<Token>& tokens) const;
+    Statement parse(const std::vector<Token>& tokens, std::size_t& pos) const;
+    std::vector<Statement> parseAll(const std::vector<Token>& tokens) const;
 };
