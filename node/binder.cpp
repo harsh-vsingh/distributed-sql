@@ -535,10 +535,7 @@ void Binder::BoundCreateTableStatement(
     BoundedCreateTableStatement& boundedCreateStmt,
     const std::string& txnId)
 {
-    acquireExclusiveLocks(
-        {createStmt.tableName},
-        txnId
-    );
+    acquireExclusiveLocks({createStmt.tableName}, txnId);
 
     if(catalog.tableExists(createStmt.tableName) != -1)
     {
@@ -546,7 +543,6 @@ void Binder::BoundCreateTableStatement(
     }
 
     boundedCreateStmt.tableName = createStmt.tableName;
-
     boundedCreateStmt.columns = createStmt.columns;
 }
 
@@ -555,10 +551,7 @@ void Binder::BoundCreateIndexStatement(
     BoundedCreateIndexStatement& boundedCreateIndexStmt,
     const std::string& txnId)
 {
-    acquireExclusiveLocks(
-        {createStmt.tableName},
-        txnId
-    );
+    acquireExclusiveLocks({createStmt.tableName},txnId);
 
     if(catalog.indexExists(createStmt.indexName) != -1)
     {
@@ -581,9 +574,7 @@ void Binder::BoundCreateIndexStatement(
     }
 
     boundedCreateIndexStmt.indexName = createStmt.indexName;
-
     boundedCreateIndexStmt.tableId = tableId;
-
     boundedCreateIndexStmt.columnId = columnId;
 }
 
@@ -618,9 +609,7 @@ void Binder::BoundDropIndexStatement(
     acquireExclusiveLocks({index->tableName}, txnId);
 
     boundedDropIndexStmt.indexId = index->indexId;
-
     boundedDropIndexStmt.tableId = index->tableId;
-
     boundedDropIndexStmt.columnId = index->columnId;
 }
 
@@ -658,147 +647,113 @@ BoundStatement Binder::bind(
 
             BoundSelectStatement(
                 std::get<SelectStatement>(statement),
-                std::get<BoundedSelectStatement>(
-                    boundStatement
-                ),
+                std::get<BoundedSelectStatement>(boundStatement),
                 txnId
             );
             break;
 
         case 1:
-            boundStatement =
-                BoundedInsertStatement{};
+            boundStatement = BoundedInsertStatement{};
 
             BoundInsertStatement(
                 std::get<InsertStatement>(statement),
-                std::get<BoundedInsertStatement>(
-                    boundStatement
-                ),
+                std::get<BoundedInsertStatement>(boundStatement),
                 txnId
             );
             break;
 
         case 2:
-            boundStatement =
-                BoundedUpdateStatement{};
+            boundStatement = BoundedUpdateStatement{};
 
             BoundUpdateStatement(
                 std::get<UpdateStatement>(statement),
-                std::get<BoundedUpdateStatement>(
-                    boundStatement
-                ),
+                std::get<BoundedUpdateStatement>(boundStatement),
                 txnId
             );
             break;
 
         case 3:
-            boundStatement =
-                BoundedDeleteStatement{};
+            boundStatement = BoundedDeleteStatement{};
 
             BoundDeleteStatement(
                 std::get<DeleteStatement>(statement),
-                std::get<BoundedDeleteStatement>(
-                    boundStatement
-                ),
+                std::get<BoundedDeleteStatement>(boundStatement),
                 txnId
             );
             break;
 
         case 4:
-            boundStatement =
-                BoundedCreateTableStatement{};
+            boundStatement = BoundedCreateTableStatement{};
 
             BoundCreateTableStatement(
                 std::get<CreateTableStatement>(statement),
-                std::get<BoundedCreateTableStatement>(
-                    boundStatement
-                ),
+                std::get<BoundedCreateTableStatement>(boundStatement),
                 txnId
             );
             break;
 
         case 5:
-            boundStatement =
-                BoundedCreateIndexStatement{};
+            boundStatement = BoundedCreateIndexStatement{};
 
             BoundCreateIndexStatement(
                 std::get<CreateIndexStatement>(statement),
-                std::get<BoundedCreateIndexStatement>(
-                    boundStatement
-                ),
+                std::get<BoundedCreateIndexStatement>(boundStatement),
                 txnId
             );
             break;
 
         case 6:
-            boundStatement =
-                BoundedDropTableStatement{};
+            boundStatement = BoundedDropTableStatement{};
 
             BoundDropTableStatement(
                 std::get<DropTableStatement>(statement),
-                std::get<BoundedDropTableStatement>(
-                    boundStatement
-                ),
+                std::get<BoundedDropTableStatement>(boundStatement),
                 txnId
             );
             break;
 
         case 7:
-            boundStatement =
-                BoundedDropIndexStatement{};
+            boundStatement = BoundedDropIndexStatement{};
 
             BoundDropIndexStatement(
                 std::get<DropIndexStatement>(statement),
-                std::get<BoundedDropIndexStatement>(
-                    boundStatement
-                ),
+                std::get<BoundedDropIndexStatement>(boundStatement),
                 txnId
             );
             break;
 
         case 8:
-            boundStatement =
-                BoundedBeginStatement{};
+            boundStatement = BoundedBeginStatement{};
 
             BoundBeginStatement(
                 std::get<BeginStatement>(statement),
-                std::get<BoundedBeginStatement>(
-                    boundStatement
-                ),
+                std::get<BoundedBeginStatement>(boundStatement),
                 txnId
             );
             break;
 
         case 9:
-            boundStatement =
-                BoundedCommitStatement{};
+            boundStatement = BoundedCommitStatement{};
 
             BoundCommitStatement(
                 std::get<CommitStatement>(statement),
-                std::get<BoundedCommitStatement>(
-                    boundStatement
-                ),
+                std::get<BoundedCommitStatement>(boundStatement),
                 txnId
             );
             break;
 
         case 10:
-            boundStatement =
-                BoundedRollbackStatement{};
+            boundStatement = BoundedRollbackStatement{};
 
             BoundRollbackStatement(
                 std::get<RollbackStatement>(statement),
-                std::get<BoundedRollbackStatement>(
-                    boundStatement
-                ),
+                std::get<BoundedRollbackStatement>(boundStatement),
                 txnId
             );
             break;
 
         default:
-            throw std::runtime_error(
-                "Unknown statement type"
-            );
+            throw std::runtime_error("Unknown statement type");
     }
 
     return boundStatement;
