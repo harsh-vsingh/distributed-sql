@@ -106,25 +106,12 @@ bool Lexer::isSymbol(const std::string& source)
 
 bool Lexer::isAlpha(const std::string& source)
 {
-    return std::isalpha(source[pos]) || source[pos] == '_';
+    return std::isalpha(static_cast<unsigned char>(source[pos])) || source[pos] == '_';
 }
 
 bool Lexer::isDigit(const std::string& source)
 {
-    return std::isdigit(source[pos]);
-}
-
-bool Lexer::isComment(const std::string& source)
-{
-    if(source[pos] == '-' && pos + 1 < source.length() && source[pos + 1] == '-')
-    {
-        return true;
-    }
-    if(source[pos] == '/' && pos + 1 < source.length() && source[pos + 1] == '*')
-    {
-        return true;
-    }
-    return false;
+    return std::isdigit(static_cast<unsigned char>(source[pos]));
 }
 
 void Lexer::resolveSymbol(const std::string& source, std::vector<Token>& tokens)
@@ -135,21 +122,21 @@ void Lexer::resolveSymbol(const std::string& source, std::vector<Token>& tokens)
     if((c == '=' || c == '<' || c == '>' || c == '!') && pos + 1 < source.length() && source[pos + 1] == '=')
     {
         std::string symbol = std::string(1, c) + "=";
-        tokens.push_back({symbols[symbol], symbol, startLine, startCol});
+        tokens.push_back({symbols.at(symbol), symbol, startLine, startCol});
         advance(source);
         advance(source);
     }
     else if(c == '<' && pos + 1 < source.length() && source[pos + 1] == '>')
     {
         std::string symbol = "<>";
-        tokens.push_back({symbols[symbol], symbol, startLine, startCol});
+        tokens.push_back({symbols.at(symbol), symbol, startLine, startCol});
         advance(source);
         advance(source);
     }
     else
     {
         std::string symbol = std::string(1, c);
-        tokens.push_back({symbols[symbol], symbol, startLine, startCol});
+        tokens.push_back({symbols.at(symbol), symbol, startLine, startCol});
         advance(source);
     }
     lastResolvedTokenPos = pos - 1;
@@ -165,11 +152,14 @@ void Lexer::resolveUnresolved(const std::string& source, std::vector<Token>& tok
     }
 
     std::string upper = unresolved;
-    std::transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+    std::transform(upper.begin(), upper.end(), upper.begin(),
+        [](unsigned char c) {
+            return static_cast<char>(std::toupper(c));
+        });
 
     if(keywords.find(upper) != keywords.end())
     {
-        tokens.push_back({keywords[upper], unresolved, line, col});
+        tokens.push_back({keywords[upper], unresolved, tokenStartLine, tokenStartCol});
     }
     else
     {
@@ -192,7 +182,7 @@ void Lexer::resolveString(const std::string& source, std::vector<Token>& tokens)
     std::string strValue;
     advance(source);
 
-    while (pos < source.length())
+    while(pos < source.length())
     {
         if(source[pos] == '\\' && pos + 1 < source.length())
         {
@@ -208,8 +198,8 @@ void Lexer::resolveString(const std::string& source, std::vector<Token>& tokens)
 
     if(pos >= source.length())
     {
-        std::cerr << "Unterminated string at line " << line << ", col " << col << '\n';
-        return;
+        throw std::runtime_error("Unterminated string at line " + std::to_string(line) + ", col " + std::to_string(col) + "\n"
+            "String started at line " + std::to_string(startLine) + ", col " + std::to_string(startCol));
     }
 
     advance(source);
@@ -230,7 +220,8 @@ void Lexer::resolveNumber(const std::string& source, std::vector<Token>& tokens)
         {
             if(isFloat)
             {
-                std::cerr << "Invalid number format at line " << line << ", column " << col << '\n';
+                throw std::runtime_error("Invalid number format at line " + std::to_string(line) + ", column " + std::to_string(col) + "\n"
+                    + "Number started at line " + std::to_string(startLine) + ", column " + std::to_string(startCol));
                 break;
             }
             if(pos + 1 >= source.length() || !std::isdigit(source[pos + 1]))
@@ -240,9 +231,19 @@ void Lexer::resolveNumber(const std::string& source, std::vector<Token>& tokens)
             isFloat = true;
         
         }
+        
         numValue += source[pos];
         advance(source);
     }
+
+    if(pos < source.length() && isAlpha(source))
+    {
+        throw std::runtime_error(
+            "Invalid number at line " + std::to_string(startLine) +
+            ", column " + std::to_string(startCol)
+        );
+    }
+
     if(!numValue.empty())
     {
         tokens.push_back({isFloat ? TokenType::FLOAT : TokenType::INTEGER, numValue, startLine, startCol});
@@ -254,15 +255,23 @@ void Lexer::skipComment(const std::string& source)
 {
     if(pos + 1 < source.length() && source[pos] == '-' && source[pos+1] == '-')
     {
-        while (pos < source.length() && source[pos] != '\n')
+        while(pos < source.length() && source[pos] != '\n')
             advance(source);
     }
     else if(pos + 1 < source.length() && source[pos] == '/' && source[pos+1] == '*')
     {
         advance(source);
         advance(source);
-        while (pos + 1 < source.length() && !(source[pos] == '*' && source[pos+1] == '/'))
+        while(pos + 1 < source.length() &&
+            !(source[pos] == '*' && source[pos + 1] == '/'))
+        {
             advance(source);
+        }
+
+        if(pos + 1 >= source.length())
+            throw std::runtime_error("Unterminated comment at line " +
+                    std::to_string(line) + ", column " + std::to_string(col));
+
         advance(source);
         advance(source);
     }
@@ -330,8 +339,8 @@ std::vector<Token> Lexer::tokenize(const std::string& source)
         }
         else
         {
-            std::cerr << "Unexpected character: " << source[pos] 
-                      << " at line " << line << ", col " << col << '\n';
+            throw std::runtime_error("Unexpected character: " + std::string(1, source[pos]) 
+                      + " at line " + std::to_string(line) + ", col " + std::to_string(col));
             advance(source);
         }
     }
